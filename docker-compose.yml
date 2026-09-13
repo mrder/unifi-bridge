@@ -1,0 +1,57 @@
+# Deploy on Unraid (or any Docker host) after cloning this repo:
+#   git clone <this-repo-url> unifi-bridge && cd unifi-bridge
+#   cp .env.example .env   # compose needs this file to exist -- leave it all
+#                           # commented out/empty if you'd rather configure
+#                           # everything through the web UI (see below) instead
+#   docker compose up -d --build
+#   Then open the setup web UI (see "Accessing the web UI" below) and pick your
+#   switch type, controller address, etc. there. Anything already set in .env
+#   is just a pre-fill/unattended-boot convenience, never required.
+#
+# ACCESSING THE WEB UI:
+#   Because this runs on a macvlan network, the container gets its own real LAN
+#   IP -- Docker's `ports:` publishing (the usual localhost:PORT mapping) does
+#   NOT apply here. Find the container's IP with `docker inspect unifi-bridge`
+#   (or `docker network inspect br0`) and open http://<that-ip>:8099 -- or set
+#   a static IP for it below via `networks.br0.ipv4_address` if your br0
+#   network has a defined subnet/gateway.
+#
+# NETWORK PREREQUISITE (read this before starting):
+#   This container must be able to reach BOTH the switch's management IP AND
+#   the UniFi controller. `network_mode: br0` below assumes you already have a
+#   macvlan network named "br0" for your controller's own real LAN IP (as set
+#   up earlier in this project) -- CONTROLLER_HOST reachability over that
+#   network is confirmed working. Reaching the SWITCH over that same network
+#   has NOT been verified end-to-end -- our own testing always reached the
+#   switch's factory-default IP (10.90.90.90, a 10.0.0.0/8 address, not on the
+#   178.x LAN) from a laptop directly wired to it, never from the Unraid host.
+#
+#   Before relying on this container, do ONE of:
+#     a) Log into the switch once at its current default IP (from a laptop
+#        wired straight to it, as before) and change its management IP to a
+#        normal address on your main LAN/br0 range -- then set SWITCH_IP in
+#        .env to that address. This is the simplest option and doesn't
+#        require re-flashing or resetting anything.
+#     b) Physically connect the switch's management port to the same LAN
+#        segment your Unraid host's br0-mapped NIC is on, and add a static
+#        route on the Unraid host for 10.90.90.0/24 (or whatever subnet the
+#        switch is on) via that interface, so the container can reach
+#        10.90.90.90 directly.
+#
+version: "3.8"
+
+services:
+  unifi-bridge:
+    build: .
+    container_name: unifi-bridge
+    restart: unless-stopped
+    networks:
+      - br0
+    env_file:
+      - .env   # optional -- delete this line (and .env) to configure purely via the web UI
+    volumes:
+      - ./data:/data
+
+networks:
+  br0:
+    external: true  # the macvlan network your UniFi controller container already uses
