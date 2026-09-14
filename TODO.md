@@ -16,11 +16,13 @@ Living list of open work. Move finished items to CHANGELOG.md under
 
 ## Bridge / south_adapter
 
-- [ ] Wire per-port VLAN assignment from controller-pushed config into
-  `south_adapter.dlink_webui.DLinkWebUI.set_port_vlan_membership()` --
-  needs a real adopted device running for a while to observe the actual JSON
-  shape the controller sends for per-port VLAN config (see README "Known
-  limitations").
+- [ ] `DLinkWebUI` has no confirmed way to read a port's current
+  tagged/untagged VLAN membership back (`get_port_vlan_info()` only confirms
+  VLAN *mode*, not membership) -- needed so `DLinkSwitchAdapter.list_ports()`
+  can report real `tagged_vlans`/`untagged_vlan` and so
+  `set_port_vlans()` can stop being additive-only (see switch_adapter.py /
+  dlink_adapter.py docstrings). Needs a real adopted device running for a
+  while to also observe the controller's actual per-port VLAN push shape.
 - [ ] Decide deliberately whether to ever act on pushed `cmd`s
   (reboot/upgrade/setdefault) -- currently intentionally inert
   (`bridge_daemon.apply_pushed_config` / `run_adopted_loop`).
@@ -49,10 +51,10 @@ Living list of open work. Move finished items to CHANGELOG.md under
 
 ## Adding a new switch vendor/model
 
-- [ ] Write a new south-adapter class with the same interface as
-  `DLinkWebUI` (`login`, `logout`, `get_switch_status`, `list_vlans`,
-  `add_vlans`, `get_port_status`, `get_port_vlan_info`, `set_port_settings`,
-  `set_port_state`, `set_port_vlan_membership`, `save_config`, ...).
+- [ ] Write a new south-adapter class implementing the `SwitchAdapter` ABC
+  (`switch_adapter.py`) -- `south_adapter/dlink_adapter.py` is the reference
+  implementation, showing how to wrap a vendor-specific low-level driver
+  rather than rewrite one from scratch each time.
 - [ ] Add a `SwitchProfile` entry in `switch_profiles.py` pointing at it, with
   a real, currently-supported "classic" UniFi model/sysid (check against a
   live controller's discovery log first -- see README "Why an older UniFi

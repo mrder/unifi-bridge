@@ -94,8 +94,8 @@ def verify_switch(profile, ip: str) -> dict | None:
     south = south_cls(ip, username=profile.default_username, password=profile.default_password)
     try:
         south.login()
-        info = south.get_switch_status()
-        return {"ip": ip, "model": info.get("model"), "firmware": info.get("firmware")}
+        info = south.get_switch_info()
+        return {"ip": ip, "model": info.model, "firmware": info.firmware}
     except Exception:
         return None
     finally:

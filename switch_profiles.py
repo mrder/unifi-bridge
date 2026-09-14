@@ -7,7 +7,9 @@ type selected, no further manual lookup required.
 
 Add a new SwitchProfile here to support another switch model. Nothing else in
 the bridge needs to change as long as the new switch has its own south-adapter
-class with the same interface as DLinkWebUI (see south_adapter/dlink_webui.py).
+class implementing the `SwitchAdapter` contract (see switch_adapter.py at the
+repo root, and south_adapter/dlink_adapter.py for the reference
+implementation).
 """
 
 from __future__ import annotations
@@ -19,7 +21,8 @@ from dataclasses import dataclass, field
 class SwitchProfile:
     key: str  # value for the SWITCH_MODEL env var
     display_name: str
-    south_adapter: str  # dotted path "module:ClassName" under south_adapter/
+    south_adapter: str  # dotted path "module:ClassName" under south_adapter/,
+    # implementing switch_adapter.SwitchAdapter
     default_ip: str  # factory-default management IP for a freshly reset switch
     default_username: str
     default_password: str
@@ -39,7 +42,7 @@ PROFILES: dict[str, SwitchProfile] = {
     "dlink-dgs1250-28x": SwitchProfile(
         key="dlink-dgs1250-28x",
         display_name="D-Link DGS-1250-28X",
-        south_adapter="dlink_webui:DLinkWebUI",
+        south_adapter="dlink_adapter:DLinkSwitchAdapter",
         default_ip="10.90.90.90",
         default_username="admin",
         default_password="admin",

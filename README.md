@@ -58,19 +58,32 @@ below for specifics.
 ## Architecture
 
 ```
-UniFi Controller  <--- inform + discovery --->  [north_adapter]  <--->  [bridge_daemon]  <--->  [south_adapter]  <--- HTTP --->  D-Link switch
+UniFi Controller  <--HTTP-->  north_adapter  <--Python calls--  bridge_daemon.py  --Python calls-->  SwitchAdapter  <--HTTP-->  real switch
+                                                                                         ^
+                                                                                  the universal contract
+                                                                              (switch_adapter.py) -- every
+                                                                              south adapter implements this
 ```
 
-- **south_adapter**: talks to the D-Link switch via its own web UI's HTTP
-  endpoints. Complete and live-tested.
+- **south_adapter**: talks to a specific vendor's real switch. Currently
+  `dlink_webui.py` (the low-level D-Link web UI driver, complete and
+  live-tested) plus `dlink_adapter.py` (`DLinkSwitchAdapter`, a thin wrapper
+  translating that driver's output into the universal shapes below -- this is
+  the class `bridge_daemon.py` actually talks to).
+- **switch_adapter.py**: the universal contract (`SwitchAdapter` ABC +
+  `SwitchInfo`/`VlanInfo`/`PortInfo` dataclasses) between the translator and
+  any south adapter. This is what makes the bridge actually vendor-agnostic --
+  `bridge_daemon.py` only ever calls this interface, never a vendor's raw data
+  shapes, so adding a new switch model never requires touching it.
 - **north_adapter**: speaks the UniFi discovery + inform protocol (envelope,
   AES-CBC for the default-key handshake, AES-GCM for everything after adoption).
   Complete and confirmed against a live controller, including the full adoption
   handshake.
-- **bridge_daemon.py**: the persistent process that ties the two together --
+- **bridge_daemon.py**: the persistent process that ties everything together --
   handles discovery, waits for a human to click "Adopt", performs the key
-  exchange, then loops forever reporting real switch state and applying pushed
-  config.
+  exchange, then loops forever reporting real switch state (via
+  `SwitchAdapter`) and applying pushed config back onto the switch (also via
+  `SwitchAdapter`).
 
 ## Why an older UniFi model is impersonated, not the closest capability match
 
@@ -417,7 +430,12 @@ later.
 
 ## Files
 
+- `switch_adapter.py` -- the universal `SwitchAdapter` contract every south
+  adapter implements; this is what `bridge_daemon.py` actually talks to
 - `south_adapter/dlink_webui.py` -- Web UI HTTP client (complete, see above)
+- `south_adapter/dlink_adapter.py` -- `DLinkSwitchAdapter`, wraps
+  `dlink_webui.py` to implement the universal contract; reference
+  implementation for any future switch vendor
 - `south_adapter/dlink_cli.py` -- Telnet CLI driver (unusable on current firmware)
 - `south_adapter/test_webui.py` -- full regression test, safe to rerun (creates/
   cleans up throwaway VLANs 998/999, toggles port eth1/0/2 -- **don't repoint that

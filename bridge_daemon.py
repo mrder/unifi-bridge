@@ -62,6 +62,7 @@ sys.path.insert(0, str(Path(__file__).parent / "north_adapter"))
 from inform_protocol import InformPacket, encode, decode, DEFAULT_KEY, InformProtocolError  # noqa: E402
 from discovery_protocol import build_discovery_packet, send_discovery_broadcast, send_discovery_multicast  # noqa: E402
 from switch_profiles import get_profile, SwitchProfile  # noqa: E402
+from switch_adapter import SwitchAdapter  # noqa: E402
 
 import requests  # noqa: E402
 
@@ -141,8 +142,12 @@ def parse_mgmt_cfg(text: str) -> dict[str, str]:
     return out
 
 
-def build_report_payload(south, profile: SwitchProfile, mac: str, ip: str, uptime: int,
+def build_report_payload(south: SwitchAdapter, profile: SwitchProfile, mac: str, ip: str, uptime: int,
                           state: int, cfgversion: str | None) -> dict:
+    """Talks ONLY to the universal SwitchAdapter interface (switch_adapter.py) --
+    never to a specific vendor's raw data shapes. That's the actual point of
+    that interface: this function works unchanged for any switch model with a
+    conforming south adapter, not just the D-Link this was written against."""
     payload = {
         "sysid": profile.fake_sysid,
         "model": profile.fake_model,
@@ -155,60 +160,60 @@ def build_report_payload(south, profile: SwitchProfile, mac: str, ip: str, uptim
     if cfgversion:
         payload["cfgversion"] = cfgversion
     try:
-        vlans = south.list_vlans()
-        payload["vlan_table"] = [{"vid": v.vid, "name": v.name} for v in vlans]
+        payload["vlan_table"] = [{"vid": v.vid, "name": v.name} for v in south.list_vlans()]
     except Exception as e:
         log.warning("could not read VLANs from switch: %s", e)
     try:
-        link_status = {p["port"]: p for p in south.get_port_status()}
-        ports_raw = {p[4]: p for p in south.get_port_vlan_info()}
-        port_table = []
-        for port_no, (port, vlan_mode, ingress, accept_frame, _) in ports_raw.items():
-            link = link_status.get(port, {})
-            port_table.append({
-                "port_idx": int(port_no),
-                "name": port,
-                "vlan_mode": vlan_mode.lower(),
-                "up": link.get("status") == "Connected",
-                "speed": link.get("speed"),
-                "full_duplex": link.get("duplex") == "Full",
-                "media": link.get("media_type"),
-            })
-        port_table.sort(key=lambda p: p["port_idx"])
+        port_table = [
+            {
+                "port_idx": p.port_idx,
+                "name": p.name,
+                "enabled": p.enabled,
+                "up": p.up,
+                "speed": p.speed_mbps,
+                "full_duplex": p.full_duplex,
+                "untagged_vlan": p.untagged_vlan,
+                "tagged_vlans": p.tagged_vlans,
+            }
+            for p in south.list_ports()
+        ]
         payload["port_table"] = port_table
     except Exception as e:
         log.warning("could not read port status from switch: %s", e)
     return payload
 
 
-def apply_pushed_config(south, cfg: dict) -> None:
+def apply_pushed_config(south: SwitchAdapter, cfg: dict) -> None:
     """Best-effort translation of controller-pushed config into real south-adapter
-    calls. Currently covers: VLAN creation (vlansToDeploy) and per-port VLAN
-    membership when the controller includes it. PoE settings are logged and
-    skipped -- this switch has no PoE hardware. Anything else unrecognized is
-    logged, never silently dropped, so gaps are visible instead of hidden."""
+    calls, via the universal SwitchAdapter interface only. Currently covers: VLAN
+    creation (vlansToDeploy) and per-port enable/disable when the controller
+    includes it. PoE settings are logged and skipped -- this switch has no PoE
+    hardware. Anything else unrecognized is logged, never silently dropped, so
+    gaps are visible instead of hidden."""
     vlans_to_deploy = cfg.get("vlansToDeploy")
     if vlans_to_deploy:
         try:
-            existing = {v.vid for v in south.list_vlans()}
+            vids = [int(v) for v in vlans_to_deploy]
+            log.info("ensuring VLANs pushed by controller exist: %s", vids)
+            south.ensure_vlans(vids)
         except Exception as e:
-            log.warning("could not read existing VLANs before applying push: %s", e)
-            existing = set()
-        missing = [str(v) for v in vlans_to_deploy if str(v) not in existing]
-        if missing:
-            log.info("creating VLANs pushed by controller: %s", missing)
-            try:
-                south.add_vlans(",".join(missing))
-            except Exception as e:
-                log.error("failed to create pushed VLANs %s: %s", missing, e)
+            log.error("failed to apply pushed VLANs %s: %s", vlans_to_deploy, e)
 
     ports_to_deploy = cfg.get("portsToDeploy")
     if ports_to_deploy:
         for port_cfg in ports_to_deploy:
-            unhandled = {k: v for k, v in port_cfg.items() if k not in ("port_idx", "poe_mode")}
+            handled = {"port_idx", "poe_mode"}
             if "poe_mode" in port_cfg:
                 log.debug("port %s: ignoring poe_mode=%s (no PoE hardware on this switch)",
                           port_cfg.get("port_idx"), port_cfg["poe_mode"])
+            if "enabled" in port_cfg and "port_idx" in port_cfg:
+                handled.add("enabled")
+                try:
+                    south.set_port_enabled(int(port_cfg["port_idx"]), bool(port_cfg["enabled"]))
+                except Exception as e:
+                    log.error("failed to set port %s enabled=%s: %s",
+                              port_cfg.get("port_idx"), port_cfg.get("enabled"), e)
+            unhandled = {k: v for k, v in port_cfg.items() if k not in handled}
             if unhandled:
                 log.warning("port %s: unhandled pushed fields (not applied): %s",
                             port_cfg.get("port_idx"), unhandled)
@@ -384,10 +389,10 @@ def run_bridge(config: dict, status: BridgeStatus | None = None) -> None:
             status.error = str(e)
             status.set("error", f"Could not log into switch at {switch_ip}: {e}")
         raise
-    switch_status = south.get_switch_status()
-    mac = switch_status["mac"].replace("-", ":").lower()
+    switch_info = south.get_switch_info()
+    mac = switch_info.mac
     log.info("connected to real switch: %s fw=%s mac=%s",
-              switch_status.get("model"), switch_status.get("firmware"), mac)
+              switch_info.model, switch_info.firmware, mac)
     if status:
         status.mac = mac
 

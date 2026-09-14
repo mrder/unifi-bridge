@@ -8,6 +8,30 @@ see TODO.md for what's still open before that happens.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-09-14 (beta, master)
+
+### Added
+- `switch_adapter.py`: the universal contract (`SwitchAdapter` ABC +
+  `SwitchInfo`/`VlanInfo`/`PortInfo` dataclasses) between `bridge_daemon.py`
+  and any south adapter. Fixes a real gap in 0.0.1: `bridge_daemon.py` used to
+  unpack D-Link-specific tuple shapes directly, so it was only nominally
+  vendor-agnostic -- a new switch vendor would have required editing it, not
+  just adding an adapter. Now it talks only to this interface.
+- `south_adapter/dlink_adapter.py`: `DLinkSwitchAdapter`, implementing that
+  contract by wrapping the unchanged, still-usable-on-its-own `DLinkWebUI`
+  driver. Reference implementation for any future switch vendor.
+- Per-port enable/disable from controller-pushed config
+  (`portsToDeploy[].enabled`) is now actually applied via
+  `SwitchAdapter.set_port_enabled()` -- previously only logged as unhandled.
+- `south_adapter` bumped to 0.2.0 (interface change); `north_adapter`
+  unaffected by this release, stays 0.1.0.
+
+### Known gap carried over honestly (see TODO.md)
+- `DLinkSwitchAdapter.list_ports()` can't yet report per-port tagged/untagged
+  VLAN membership (`DLinkWebUI` has no confirmed read for it), so
+  `set_port_vlans()` is additive-only -- it can add memberships but can't
+  safely remove ones it can't first read back.
+
 ## [0.0.1] - 2026-09-14 (beta, master)
 
 Initial public version. The core adoption loop works end-to-end against a
