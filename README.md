@@ -101,6 +101,18 @@ that generation. This is a load-bearing, empirically-found constraint, not a
 preference -- `switch_profiles.py` uses `USXG24` (sysid 60201) for exactly this
 reason.
 
+## Versioning
+
+`master` is the active beta branch (`0.0.x`, bumped per milestone); `main`
+will carry actual releases (`0.x.0`) once a beta on `master` has proven
+itself -- nothing has graduated to `main` yet. `north_adapter` and
+`south_adapter` are versioned independently of the overall bridge version
+(and of each other) -- see their own `__version__`. The web UI's status page
+shows all three and can check GitHub for a newer bridge release (it only
+checks and shows the update command -- it never updates itself; see
+`webui.py`'s `check_for_update()` docstring for why). See `CHANGELOG.md` for
+what changed per version and `TODO.md` for what's still open.
+
 ## Deployment
 
 ### Prerequisites

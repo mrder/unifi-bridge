@@ -34,12 +34,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "south_adapter"))
 sys.path.insert(0, str(Path(__file__).parent / "north_adapter"))
 
+import requests
 from flask import Flask, request, redirect, url_for, jsonify, render_template_string
 
 from bridge_daemon import run_bridge, load_south_adapter, BridgeStatus
 from switch_profiles import PROFILES, get_profile
+import north_adapter
+import south_adapter
 
 CONFIG_FILE = Path(os.environ.get("CONFIG_FILE", "/data/config.json"))
+BRIDGE_VERSION = (Path(__file__).parent / "VERSION").read_text().strip()
+GITHUB_REPO = "mrder/unifi-bridge"
 
 app = Flask(__name__)
 status = BridgeStatus()
@@ -136,6 +141,41 @@ def scan_for_switch(profile) -> list[dict]:
     return found
 
 
+def _parse_version(v: str) -> tuple[int, ...]:
+    v = v.strip().lstrip("vV")
+    try:
+        return tuple(int(p) for p in v.split("."))
+    except ValueError:
+        return (0,)
+
+
+def check_for_update() -> dict:
+    """Deliberately does NOT update anything itself -- only checks GitHub and,
+    if a newer version exists, hands back the exact command to run manually.
+    See README/CHANGELOG for why this is a conscious choice (self-updating
+    would need docker-socket access from inside the container, which is a
+    real increase in what this container could do to the host)."""
+    try:
+        resp = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", timeout=5)
+        if resp.status_code == 404:
+            return {"current": BRIDGE_VERSION, "latest": None,
+                    "message": "No releases published yet on GitHub."}
+        resp.raise_for_status()
+        latest_tag = resp.json().get("tag_name", "")
+        latest_url = resp.json().get("html_url", "")
+    except Exception as e:
+        return {"current": BRIDGE_VERSION, "latest": None, "error": str(e)}
+
+    update_available = _parse_version(latest_tag) > _parse_version(BRIDGE_VERSION)
+    return {
+        "current": BRIDGE_VERSION,
+        "latest": latest_tag,
+        "latest_url": latest_url,
+        "update_available": update_available,
+        "command": "cd unifi-bridge && git pull && docker compose up -d --build" if update_available else None,
+    }
+
+
 PAGE_STYLE = """
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; }
@@ -230,6 +270,16 @@ STATUS_PAGE = """
 <p>Last inform sent: <span id="last_inform">{{ s.last_inform_ts }}</span></p>
 {% endif %}
 {% if s.error %}<p style="color:#a3231f;">Error: {{ s.error }}</p>{% endif %}
+
+<h3>Versions</h3>
+<p class="hint">
+  bridge {{ versions.bridge }} &nbsp;|&nbsp;
+  north_adapter {{ versions.north }} &nbsp;|&nbsp;
+  south_adapter {{ versions.south }}
+</p>
+<button type="button" onclick="checkUpdate()">Check for updates</button>
+<div id="update_status" class="hint"></div>
+
 <h3>Recent log</h3>
 <pre class="log" id="log">{{ s.log_lines|join('\\n') }}</pre>
 <p><a href="{{ url_for('reconfigure') }}">Reconfigure</a></p>
@@ -240,6 +290,20 @@ setInterval(() => {
     document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight;
   });
 }, 3000);
+
+function checkUpdate() {
+  const el = document.getElementById('update_status');
+  el.textContent = 'Checking...';
+  fetch('/update-check').then(r => r.json()).then(d => {
+    if (d.error) { el.textContent = 'Check failed: ' + d.error; return; }
+    if (d.latest === null) { el.textContent = d.message || 'No releases found.'; return; }
+    if (d.update_available) {
+      el.innerHTML = 'Update available: <b>' + d.latest + '</b> (you have ' + d.current + '). Run: <code>' + d.command + '</code>';
+    } else {
+      el.textContent = 'Up to date (' + d.current + ').';
+    }
+  }).catch(() => { el.textContent = 'Check failed.'; });
+}
 </script>
 </body></html>
 """
@@ -251,12 +315,18 @@ def index():
     if not config:
         return render_template_string(SETUP_PAGE, profiles=PROFILES)
     start_bridge(config)  # no-op if already running
-    return render_template_string(STATUS_PAGE, s=status.snapshot())
+    versions = {"bridge": BRIDGE_VERSION, "north": north_adapter.__version__, "south": south_adapter.__version__}
+    return render_template_string(STATUS_PAGE, s=status.snapshot(), versions=versions)
 
 
 @app.route("/status.json")
 def status_json():
     return jsonify(status.snapshot())
+
+
+@app.route("/update-check")
+def update_check():
+    return jsonify(check_for_update())
 
 
 @app.route("/scan")
