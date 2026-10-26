@@ -174,6 +174,14 @@ def build_report_payload(south: SwitchAdapter, profile: SwitchProfile, mac: str,
                 "full_duplex": p.full_duplex,
                 "untagged_vlan": p.untagged_vlan,
                 "tagged_vlans": p.tagged_vlans,
+                # Field names match UniFi's own device agents' port_table shape
+                # (cross-checked against unpoller/unifi's Go structs) -- the
+                # controller computes throughput graphs from the delta between
+                # successive informs, so these must be cumulative counters, not
+                # point-in-time rates. Omitted (not sent as null) when a south
+                # adapter can't read them, rather than sending a misleading 0.
+                **({"rx_bytes": p.rx_bytes} if p.rx_bytes is not None else {}),
+                **({"tx_bytes": p.tx_bytes} if p.tx_bytes is not None else {}),
             }
             for p in south.list_ports()
         ]
@@ -326,7 +334,16 @@ def run_adopted_loop(south, profile: SwitchProfile, mac: str, switch_ip: str,
                 system_cfg = decoded.payload.get("system_cfg")
                 if system_cfg:
                     try:
-                        apply_pushed_config(south, json.loads(system_cfg) if isinstance(system_cfg, str) else system_cfg)
+                        parsed_cfg = json.loads(system_cfg) if isinstance(system_cfg, str) else system_cfg
+                        apply_pushed_config(south, parsed_cfg)
+                    except json.JSONDecodeError as e:
+                        # Observed live 2026-10-26 against a real controller: a
+                        # freshly-adopted device's first setparam can carry a
+                        # system_cfg value that isn't parseable JSON (e.g. blank/
+                        # whitespace) -- harmless (nothing to apply yet), but
+                        # logged with the raw value so a REAL parse regression is
+                        # still visible instead of silently blending into noise.
+                        log.warning("system_cfg wasn't valid JSON (%s), raw value: %r", e, system_cfg)
                     except Exception as e:
                         log.error("failed applying pushed config: %s", e)
                 log.info("applied setparam (cfgversion=%s)", cfgversion)

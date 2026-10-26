@@ -29,6 +29,12 @@ Living list of open work. Move finished items to CHANGELOG.md under
 - [ ] `dlink_webui.py`'s `set_port_settings()` applies all fields at once
   (no partial update server-side) -- worth a safety check/guard before
   calling it from an automated config-push path, not just from manual tests.
+- [ ] `DLinkSwitchAdapter.list_ports()` doesn't populate `rx_bytes`/`tx_bytes`
+  (PortInfo has the fields now, added for the Netgear adapter -- see
+  CHANGELOG). `DLinkWebUI.get_port_utilization()` only exposes pps/utilization
+  %, not cumulative byte counters -- a new low-level read method (a
+  "port statistics/counters" datastore page, not yet reverse-engineered)
+  would be needed first.
 
 ## NETGEAR JGS524Ev2 (south_adapter/netgear_http.py, netgear_adapter.py)
 

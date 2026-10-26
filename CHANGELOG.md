@@ -8,6 +8,30 @@ see TODO.md for what's still open before that happens.
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-10-26 (beta, master)
+
+First live test of the actual `bridge_daemon.py`/`webui.py` production code
+path (not standalone test scripts) against a real controller, using the
+NETGEAR adapter: discovery, the "Adopt" click, the GCM key exchange, and the
+ongoing inform loop all confirmed working end to end -- the device showed up
+Connected in the UniFi UI with its real port list.
+
+### Fixed
+- `run_adopted_loop()` no longer logs a generic error when a `setparam`'s
+  `system_cfg` isn't parseable JSON (observed live: a freshly-adopted
+  device's first push can carry a blank/non-JSON value here) -- now a
+  specific warning with the raw value, so a real parsing regression stays
+  visible instead of blending into this known-harmless case.
+
+### Added
+- `PortInfo` gained `rx_bytes`/`tx_bytes` (cumulative counters, matching how
+  UniFi's own device agents report traffic -- the controller computes
+  throughput graphs from the delta between informs). Implemented for the
+  NETGEAR adapter via NSDP (confirmed live: real counters came back even
+  though this model isn't in the library's own registry). Not yet
+  implemented for the D-Link adapter (see TODO.md) -- `DLinkWebUI` currently
+  only exposes pps/utilization %, not cumulative bytes.
+
 ## [0.0.3] - 2026-10-26 (beta, master)
 
 ### Added

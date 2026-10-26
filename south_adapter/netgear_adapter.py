@@ -104,8 +104,13 @@ class NetgearSwitchAdapter(SwitchAdapter):
                 self._http.add_vlan(vid)
 
     def list_ports(self) -> list[PortInfo]:
+        # Confirmed live 2026-10-26: this switch's NSDP agent reports real
+        # cumulative rx/tx byte counters even though it's an unregistered
+        # model (per-packet counters come back empty -- bytes only).
+        stats_by_port = {s.port: s for s in self._nsdp.get_stats()}
         ports = []
         for p in self._nsdp.get_ports():
+            stats = stats_by_port.get(p.port)
             ports.append(PortInfo(
                 port_idx=p.port,
                 name=p.name or f"port{p.port}",
@@ -115,6 +120,8 @@ class NetgearSwitchAdapter(SwitchAdapter):
                 full_duplex=p.full_duplex,
                 untagged_vlan=None,  # see module docstring -- not implemented
                 tagged_vlans=[],
+                rx_bytes=stats.rx_bytes if stats else None,
+                tx_bytes=stats.tx_bytes if stats else None,
             ))
         return ports
 

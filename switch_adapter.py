@@ -50,6 +50,16 @@ class PortInfo:
     full_duplex: bool | None
     untagged_vlan: int | None  # native/PVID, if any
     tagged_vlans: list[int] = field(default_factory=list)
+    # Cumulative counters (not instantaneous rates) -- matches how UniFi's own
+    # device agents report traffic (confirmed against unpoller/unifi's Go
+    # structs as a schema reference): the controller's own UI computes
+    # throughput graphs from the delta between successive informs, so sending
+    # a point-in-time rate here would be the wrong shape even if we had one.
+    # None where a south adapter can't read them (not every backend exposes
+    # this, e.g. D-Link's web UI currently only exposes %/pps utilization,
+    # not cumulative bytes -- see TODO.md).
+    rx_bytes: int | None = None
+    tx_bytes: int | None = None
 
 
 class SwitchAdapter(ABC):
