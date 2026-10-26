@@ -17,6 +17,13 @@ ongoing inform loop all confirmed working end to end -- the device showed up
 Connected in the UniFi UI with its real port list.
 
 ### Fixed
+- `NetgearHttp._fetch_vlan_page()` now detects and recovers from a session
+  getting silently kicked by a competing login elsewhere (confirmed live:
+  a separate short-lived read-only script logging in was enough to kick a
+  live `bridge_daemon.py` run's own session -- the switch doesn't error on
+  the next request, it just serves the login page back, which used to
+  crash the VLAN read with a bare `AttributeError`). Now re-logs in once
+  and retries before giving up with a clear error.
 - `run_adopted_loop()` no longer logs a generic error when a `setparam`'s
   `system_cfg` isn't parseable JSON (observed live: a freshly-adopted
   device's first push can carry a blank/non-JSON value here) -- now a

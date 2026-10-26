@@ -145,9 +145,26 @@ class NetgearHttp:
             raise NetgearHttpError("not logged in -- call login() first")
 
     def _fetch_vlan_page(self) -> str:
+        """Confirmed live 2026-10-26: this switch's single-admin-session limit
+        can silently invalidate an already-logged-in session from elsewhere
+        (another login, even a brief read-only one, kicks the old session) --
+        the server doesn't error on the next request, it just serves the
+        LOGIN page back instead of the requested one. Detect that (no
+        `vlanType` marker present) and transparently re-login once rather
+        than let a caller's regex crash on an unexpected page."""
         self._require_login()
         r = self.session.get(f"{self.base}/{self.VLAN_PATH}", timeout=10)
         r.raise_for_status()
+        if "vlanType" not in r.text:
+            self.login()
+            r = self.session.get(f"{self.base}/{self.VLAN_PATH}", timeout=10)
+            r.raise_for_status()
+            if "vlanType" not in r.text:
+                raise NetgearHttpError(
+                    "VLAN page didn't return expected content even after re-login "
+                    "-- possibly another session is actively competing for this "
+                    "switch's single admin-session slot"
+                )
         return r.text
 
     def get_vlan_state(self) -> VlanState:
