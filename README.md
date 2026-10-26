@@ -129,6 +129,10 @@ what changed per version and `TODO.md` for what's still open.
 
 ## Deployment
 
+**For a step-by-step walkthrough (clone → build → adopt → verify it survives
+a restart), see [`INSTALL.md`](INSTALL.md).** The rest of this section is the
+reference/background material that walkthrough points back to.
+
 ### Prerequisites
 
 - The switch must be at **factory defaults** with its **default admin login**
