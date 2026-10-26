@@ -30,6 +30,26 @@ Living list of open work. Move finished items to CHANGELOG.md under
   (no partial update server-side) -- worth a safety check/guard before
   calling it from an automated config-push path, not just from manual tests.
 
+## NETGEAR JGS524Ev2 (south_adapter/netgear_http.py, netgear_adapter.py)
+
+- [ ] Find where per-port 802.1Q tagged/untagged VLAN assignment actually
+  lives in this switch's web UI (the "Advanced VLAN Configuration" page only
+  does VID create/delete + a membership summary, confirmed by reading its
+  full rendering JS) -- likely under "802.1Q > Einfach" (Basic), not yet
+  explored. Needed before `set_port_vlans()` can be implemented.
+- [ ] Live-verify `set_port_enabled()` (currently delegates to the
+  `python-netgear-switch-library` NSDP write path, unverified against this
+  exact switch/firmware) with an actual port toggle during a maintenance
+  window.
+- [ ] Verify `default_ip`/`default_password` in the `netgear-jgs524ev2`
+  profile against a genuinely factory-reset unit -- currently NETGEAR's
+  commonly-documented defaults, not live-tested (see switch_profiles.py).
+- [ ] No logout endpoint was found for this switch's web UI (unlike
+  `DLinkWebUI`'s `/form/Logout`) -- `NetgearHttp.logout()` only drops the
+  session cookie client-side; confirm whether that's actually sufficient to
+  free up the switch's single-admin-session slot promptly, or whether
+  sessions linger server-side until timeout.
+
 ## North adapter / protocol
 
 - [ ] Observe a real, sustained provisioning cycle (current understanding of
@@ -52,9 +72,12 @@ Living list of open work. Move finished items to CHANGELOG.md under
 ## Adding a new switch vendor/model
 
 - [ ] Write a new south-adapter class implementing the `SwitchAdapter` ABC
-  (`switch_adapter.py`) -- `south_adapter/dlink_adapter.py` is the reference
-  implementation, showing how to wrap a vendor-specific low-level driver
-  rather than rewrite one from scratch each time.
+  (`switch_adapter.py`) -- `south_adapter/dlink_adapter.py` (wraps one
+  hand-written low-level driver) and `south_adapter/netgear_adapter.py`
+  (combines a hand-written driver for what an existing library doesn't cover
+  with that library for what it does) are both reference implementations;
+  pick whichever pattern fits whether a usable library already exists for
+  the vendor.
 - [ ] Add a `SwitchProfile` entry in `switch_profiles.py` pointing at it, with
   a real, currently-supported "classic" UniFi model/sysid (check against a
   live controller's discovery log first -- see README "Why an older UniFi

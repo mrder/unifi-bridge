@@ -51,6 +51,30 @@ PROFILES: dict[str, SwitchProfile] = {
         fake_version="7.5.15",
         fake_port_count=28,
     ),
+    "netgear-jgs524ev2": SwitchProfile(
+        key="netgear-jgs524ev2",
+        display_name="NETGEAR JGS524Ev2",
+        south_adapter="netgear_adapter:NetgearSwitchAdapter",
+        # UNVERIFIED default_ip/default_password: this profile was built and
+        # tested entirely against a switch the user already had configured
+        # (custom password, normal LAN IP) -- a true factory-reset JGS524Ev2
+        # was never available to confirm its real out-of-box IP/password.
+        # 192.168.0.239 is NETGEAR's commonly-documented DHCP-fallback static
+        # IP for this switch generation; empty password matches these
+        # switches' typical "no password until first login" factory state.
+        # Override both via the web UI/env vars if they don't match reality.
+        default_ip="192.168.0.239",
+        default_username="admin",
+        default_password="",
+        # US24 (not USXG24, which this switch -- no SFP+/10G -- doesn't match
+        # anyway): 24x1G, no PoE, Broadcom-era "classic" UniFi switch, already
+        # confirmed live to pass the legacy L2 discovery listener (see README
+        # "Why an older UniFi model").
+        fake_sysid=60208,
+        fake_model="US24",
+        fake_version="7.5.15",
+        fake_port_count=24,
+    ),
 }
 
 

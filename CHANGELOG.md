@@ -8,6 +8,41 @@ see TODO.md for what's still open before that happens.
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-26 (beta, master)
+
+### Added
+- Second switch vendor supported: NETGEAR JGS524Ev2 ("Smart Managed Plus"),
+  proving `SwitchAdapter` is genuinely vendor-agnostic in practice, not just
+  in theory -- no changes to `bridge_daemon.py` were needed.
+  - `south_adapter/netgear_http.py`: raw HTTP client reverse-engineered
+    live against a real JGS524Ev2 (firmware 2.6.0.48) -- login (HMAC-MD5
+    with a hardcoded key and unusual 2048-byte padding scheme, read
+    straight out of the switch's own JS), and 802.1Q VLAN create/delete/
+    enable/disable. All confirmed live: VLAN created, its exact membership
+    encoding observed, then deleted again; 802.1Q toggled on and back off
+    to its original state. No disruption to the switch's active ports
+    (verified via a before/after NSDP port-status comparison).
+  - `south_adapter/netgear_adapter.py`: `NetgearSwitchAdapter`, implementing
+    `SwitchAdapter` by combining that HTTP client (VLANs) with NSDP via the
+    new `python-netgear-switch-library` dependency (port/device status --
+    confirmed live to work correctly even though this exact model isn't in
+    that library's own registry, since NSDP reads are protocol-generic).
+  - `switch_profiles.py`: new `netgear-jgs524ev2` entry, impersonating
+    `US24` (same reasoning as the D-Link's `USXG24` choice -- see README
+    "Why an older UniFi model").
+
+### Known gaps, carried over honestly (see TODO.md)
+- Per-port tagged VLAN assignment: the page that would do this was not
+  located during reconnaissance -- `set_port_vlans()` raises
+  `NotImplementedError` rather than guessing.
+- `set_port_enabled()` delegates to the dependency's NSDP write path but was
+  NOT independently live-tested (reads were verified live; a disruptive
+  write test was judged not worth doing beyond what was already explicitly
+  approved for the VLAN test).
+- `default_ip`/`default_password` in the new profile are NETGEAR's
+  commonly-documented factory-default values, not live-verified -- testing
+  only ever happened against the user's already-configured switch.
+
 ## [0.0.2] - 2026-09-14 (beta, master)
 
 ### Added

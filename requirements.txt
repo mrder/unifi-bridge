@@ -1,3 +1,7 @@
 requests>=2.31
 cryptography>=42.0
 flask>=3.0
+# NSDP (and optionally SNMP/HTTP) client for NETGEAR "Smart Managed Plus"
+# switches -- used by south_adapter/netgear_adapter.py. Apache-2.0,
+# github.com/mithro/python-netgear-switch-library.
+python-netgear-switch-library>=0.1.post10

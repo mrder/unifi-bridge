@@ -7,9 +7,10 @@ Network Application, so it shows up, gets adopted, and is *actually managed* --
 VLANs, port config, live status -- from the same UniFi app as your real APs and
 gateway, instead of living as a separate island with its own login and its own
 mental model. Started as a project for a single used D-Link DGS-1250-28X
-(Realtek RTL930x, 24x1G + 4x10G SFP+, no PoE); the architecture is built to add
-more switch models without touching the core protocol code -- see
-`switch_profiles.py`.
+(Realtek RTL930x, 24x1G + 4x10G SFP+, no PoE); now also supports a NETGEAR
+JGS524Ev2, added without touching the core protocol code -- proof the
+`SwitchAdapter` architecture (see `switch_profiles.py`) actually holds up
+across vendors, not just in theory.
 
 Comes with a small setup web UI (pick your switch type, optionally auto-scan
 for it, point it at your controller) as well as a plain env-var/no-UI mode --
@@ -18,7 +19,7 @@ see "Deployment" below.
 ## Disclaimer
 
 This is unofficial, community reverse-engineering work -- **not affiliated
-with, endorsed by, or supported by Ubiquiti Inc. or D-Link.** "UniFi" is a
+with, endorsed by, or supported by Ubiquiti Inc., D-Link, or NETGEAR.** "UniFi" is a
 trademark of Ubiquiti Inc. Provided as-is, no warranty (see `LICENSE`); this
 talks to your network infrastructure, so read what it does before running it
 against anything you care about. Built by decompiling and testing against
@@ -441,6 +442,14 @@ later.
   cleans up throwaway VLANs 998/999, toggles port eth1/0/2 -- **don't repoint that
   at whatever port your management PC is plugged into**)
 - `south_adapter/test_read.py` -- read-only CLI smoke test
+- `south_adapter/netgear_http.py` -- raw HTTP client for the NETGEAR
+  JGS524Ev2's web UI (VLAN create/delete/enable -- login scheme and VLAN
+  endpoints reverse-engineered live, see the module's own docstring)
+- `south_adapter/netgear_adapter.py` -- `NetgearSwitchAdapter`, combines
+  `netgear_http.py` (VLANs) with the `python-netgear-switch-library`
+  dependency's NSDP backend (port/device status) to implement the universal
+  contract; second reference implementation, showing the
+  compose-with-an-existing-library pattern
 - `north_adapter/inform_protocol.py` -- inform envelope encode/decode (CBC + GCM)
 - `north_adapter/discovery_protocol.py` -- L2 discovery packet encode
 - `north_adapter/test_inform_protocol.py` -- envelope round-trip self-test
