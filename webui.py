@@ -371,7 +371,14 @@ def config_from_env() -> dict | None:
     """Lets `.env` (or any env vars) pre-fill/unattended-boot the web UI flow --
     entirely optional, only used if no config.json exists yet. Requires at
     least SWITCH_MODEL and CONTROLLER_HOST; anything else falls back to the
-    switch profile's defaults exactly like a manual setup submission would."""
+    switch profile's defaults exactly like a manual setup submission would.
+
+    Reads the same full set of optional vars as bridge_daemon.main() --
+    BROADCAST_ADDR/INFORM_INTERVAL/DISCOVERY_INTERVAL/STATE_FILE -- even
+    though the web setup FORM has no fields for them (they're advanced/
+    rarely-needed), so .env is the only way to set them when running via
+    this entrypoint (the Docker default). Keep this in sync with
+    bridge_daemon.main()'s own env var list and .env.example."""
     if not os.environ.get("SWITCH_MODEL") or not os.environ.get("CONTROLLER_HOST"):
         return None
     return {
@@ -381,6 +388,10 @@ def config_from_env() -> dict | None:
         "switch_password": os.environ.get("SWITCH_PASSWORD"),
         "controller_host": os.environ["CONTROLLER_HOST"],
         "controller_port": os.environ.get("CONTROLLER_PORT"),
+        "broadcast_addr": os.environ.get("BROADCAST_ADDR"),
+        "inform_interval": os.environ.get("INFORM_INTERVAL"),
+        "discovery_interval": os.environ.get("DISCOVERY_INTERVAL"),
+        "state_file": os.environ.get("STATE_FILE"),
     }
 
 

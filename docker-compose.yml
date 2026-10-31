@@ -19,24 +19,27 @@
 # NETWORK PREREQUISITE (read this before starting):
 #   This container must be able to reach BOTH the switch's management IP AND
 #   the UniFi controller. `network_mode: br0` below assumes you already have a
-#   macvlan network named "br0" for your controller's own real LAN IP (as set
-#   up earlier in this project) -- CONTROLLER_HOST reachability over that
-#   network is confirmed working. Reaching the SWITCH over that same network
-#   has NOT been verified end-to-end -- our own testing always reached the
-#   switch's factory-default IP (10.90.90.90, a 10.0.0.0/8 address, not on the
-#   178.x LAN) from a laptop directly wired to it, never from the Unraid host.
+#   macvlan network named "br0" for your controller's own real LAN IP --
+#   CONTROLLER_HOST reachability over that network is confirmed working (the
+#   full adoption flow was run live through this exact macvlan path).
 #
-#   Before relying on this container, do ONE of:
+#   Reaching the SWITCH, specifically from an Unraid-hosted macvlan CONTAINER
+#   (as opposed to a regular machine on the LAN), has NOT been verified --
+#   all live testing so far ran bridge_daemon.py/webui.py directly from a
+#   regular machine already on the LAN, not from inside a macvlan container.
+#   For a switch already on your main LAN (e.g. a configured NETGEAR switch --
+#   confirmed reachable that way during testing), this will very likely just
+#   work, but hasn't been proven through this specific container path yet.
+#   For a switch still at a factory-default IP on a DIFFERENT subnet (e.g.
+#   the D-Link profile's default 10.90.90.90, a 10.0.0.0/8 address, not on a
+#   normal 192.168.x LAN), do ONE of:
 #     a) Log into the switch once at its current default IP (from a laptop
-#        wired straight to it, as before) and change its management IP to a
-#        normal address on your main LAN/br0 range -- then set SWITCH_IP in
-#        .env to that address. This is the simplest option and doesn't
-#        require re-flashing or resetting anything.
+#        wired straight to it) and change its management IP to a normal
+#        address on your main LAN/br0 range -- then set SWITCH_IP in .env to
+#        that address. Simplest option, no reset needed.
 #     b) Physically connect the switch's management port to the same LAN
 #        segment your Unraid host's br0-mapped NIC is on, and add a static
-#        route on the Unraid host for 10.90.90.0/24 (or whatever subnet the
-#        switch is on) via that interface, so the container can reach
-#        10.90.90.90 directly.
+#        route on the Unraid host for that subnet via that interface.
 #
 version: "3.8"
 
